@@ -1,28 +1,21 @@
-package com.example.Kirana.dao;
+package com.example.Kirana.service;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.Map;
 
 @Component
-public class CurrencyRateDao {
+public class CurrencyRateService {
 
     private final RestClient restClient;
-
-    public CurrencyRateDao(RestClient restClient) {
+    public CurrencyRateService(RestClient restClient) {
         this.restClient = restClient;
     }
 
     /**
      * Fetch FX rates for a base currency.
-     * Cached to avoid hitting API limits.
      */
-    @Cacheable(
-            value = "fx-rates",
-            key = "#baseCurrency"
-    )
     public Map<String, Object> getRates(String baseCurrency) {
 
         String url =
@@ -37,7 +30,7 @@ public class CurrencyRateDao {
         if (response == null || !response.containsKey("rates")) {
             throw new RuntimeException("FX rate service unavailable");
         }
-
+        System.out.println("I got call to DB");
         return (Map<String, Object>) response.get("rates");
     }
 }

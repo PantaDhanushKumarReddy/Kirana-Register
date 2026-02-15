@@ -20,17 +20,42 @@ public class KiranaController {
     }
 
     private KiranaService service;
+    /**
+     * Fetch a Kirana store by ID.
+     *
+     * Endpoint: GET /api/kirana/{id}
+     *
+     * @param id Kirana ID
+     * @return Kirana details
+     */
+
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<Kirana> getById(@PathVariable String id) {
         return ResponseEntity.ok(service.findById(id));
     }
-    @PreAuthorize("hasRole('ADMIN')")
+
+    /**
+     * Register a new Kirana store.
+     *
+     * Endpoint: POST /api/kirana/register
+     *
+     * @param dto Kirana registration request data
+     * @return Created Kirana entity
+     */
     @PostMapping("register")
     public ResponseEntity<Kirana> create(@Valid @RequestBody KiranaRequestDto dto) {
         return ResponseEntity.ok(service.create(dto));
     }
 
+    /**
+     * Deactivate a Kirana store (soft delete).
+     *
+     * Endpoint: PATCH /api/kirana/{id}/deactivate
+     *
+     * @param id Kirana ID
+     * @return Success response message
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<ApiResponse> deactivate(@PathVariable String id) {

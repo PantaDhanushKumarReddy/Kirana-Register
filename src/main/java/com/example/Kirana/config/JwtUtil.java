@@ -26,11 +26,11 @@ public class JwtUtil {
 
     private final long EXP = 1000 * 60 * 15;
 
-    public String generateAccessToken(String userId, String role, String kId) {
+    public String generateAccessToken(String userId, String role, String kiranaId) {
         return Jwts.builder()
                 .setSubject(userId)
                 .claim("role", role)
-                .claim("kId", kId)
+                .claim("kiranaId", kiranaId)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXP))
                 .signWith(accessKey)
@@ -59,11 +59,4 @@ public class JwtUtil {
                 .parseClaimsJws(token)
                 .getBody();
     }
-//    public Claims extractClaimsJws(String token) {
-//        return Jwts.parserBuilder()
-//                .setSigningKey(key)
-//                .build()
-//                .parseClaimsJws(token)
-//                .getBody();
-//    }
 }

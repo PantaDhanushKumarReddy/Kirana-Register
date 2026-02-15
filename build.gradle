@@ -35,6 +35,7 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.0'
 	implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'com.github.f4b6a3:ulid-creator:5.2.0'
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	compileOnly 'org.projectlombok:lombok'

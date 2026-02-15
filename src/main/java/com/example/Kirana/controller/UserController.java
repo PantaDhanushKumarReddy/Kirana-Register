@@ -9,16 +9,32 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+/**
+ * UserController
+ *
+ * Exposes APIs for user management.
+ */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
     private final UserService service;
-
+    /**
+     * Constructor-based dependency injection for UserService.
+     *
+     * @param service User service
+     */
     public UserController(UserService service) {
         this.service = service;
     }
+    /**
+     * Register a new user.
+     *
+     * Endpoint: POST /api/users/register
+     *
+     * @param dto User registration request data
+     * @return Created User entity
+     */
     @PostMapping("/register")
     public ResponseEntity<User> register(
             @Valid @RequestBody UserRequestDto dto) {

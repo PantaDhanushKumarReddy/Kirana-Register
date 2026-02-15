@@ -1,5 +1,7 @@
 package com.example.Kirana.controller;
+
 import com.example.Kirana.dto.response.FinancialReportResponse;
+import com.example.Kirana.enums.ReportPeriodType;
 import com.example.Kirana.service.ReportQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,10 +15,16 @@ public class ReportController {
 
     private final ReportQueryService service;
 
+    /**
+     * Fetch financial report for a given period and currency.
+     *
+     * Example:
+     * /api/reports?periodType=MONTH&periodKey=Feb-2026&currency=INR
+     */
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<FinancialReportResponse> getReport(
-            @RequestParam String periodType,
+            @RequestParam ReportPeriodType periodType,
             @RequestParam String periodKey,
             @RequestParam String currency) {
 

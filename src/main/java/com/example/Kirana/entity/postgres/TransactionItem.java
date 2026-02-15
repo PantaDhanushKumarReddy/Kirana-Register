@@ -1,10 +1,15 @@
 package com.example.Kirana.entity.postgres;
 
+import com.github.f4b6a3.ulid.UlidCreator;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Date;
+
 /**
  * TransactionItem Entity
  *
@@ -15,6 +20,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "transaction_item")
 @Data
+@EntityListeners(AuditingEntityListener.class)
 public class TransactionItem {
 
     @Id
@@ -36,6 +42,10 @@ public class TransactionItem {
     private BigDecimal unitPrice;   // INR price
 
     private BigDecimal amount;      // converted amount
-
-    private Instant createdAt;
+    @CreatedDate
+    private Date createdAt;
+    @PrePersist
+    public void generateId() {
+        this.transactionItemId = UlidCreator.getUlid().toString();
+    }
 }

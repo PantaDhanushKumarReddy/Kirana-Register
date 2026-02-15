@@ -22,5 +22,5 @@ public class UserRequestDto {
     @NotNull
     private Role role;
 
-    private String kId;
+    private String kiranaId;
 }

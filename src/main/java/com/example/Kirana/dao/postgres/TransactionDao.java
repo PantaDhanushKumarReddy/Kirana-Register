@@ -6,14 +6,23 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TransactionDao {
+
     private TransactionRepository transactionRepository;
 
     public TransactionDao(TransactionRepository transactionRepository) {
         this.transactionRepository = transactionRepository;
     }
+
     public Transaction save(Transaction transaction){
         return transactionRepository.save(transaction);
     }
+    /**
+     * Finds a transaction by its ID.
+     *
+     * @param id Transaction ID
+     * @return Transaction entity
+     * @throws RuntimeException if transaction is not found
+     */
     public Transaction findById(String id) {
         return transactionRepository.findById(id)
                 .orElseThrow(() ->

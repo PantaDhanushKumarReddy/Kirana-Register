@@ -14,18 +14,23 @@ import com.example.Kirana.entity.postgres.Transaction;
 import com.example.Kirana.entity.postgres.TransactionItem;
 import com.example.Kirana.enums.TransactionType;
 import com.example.Kirana.dto.event.TransactionEvent;
-import com.github.f4b6a3.ulid.UlidCreator;
-import io.jsonwebtoken.Claims;
-import jakarta.transaction.Transactional;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+/**
+ * ProductOrderService
+ *
+ * Handles sale and refund workflows.
+ * Coordinates  products,inventory updates, transaction persistence,
+ * and Kafka event publication.
+ */
 @Service
 public class ProductOrderService {
 
@@ -36,6 +41,9 @@ public class ProductOrderService {
     private final CurrencyService currencyService;
     private final TransactionEventProducer eventProducer;
 
+    /**
+     * Constructor-based dependency injection.
+     */
     public ProductOrderService(ProductDao productDao,
                                InventoryDao inventoryDao,
                                TransactionDao transactionDao,
@@ -49,47 +57,62 @@ public class ProductOrderService {
         this.currencyService = currencyService;
         this.eventProducer = eventProducer;
     }
-    public TransactionResponseDto sale(SaleTransactionRequestDto dto) {
+    /**
+     * Initiates a SALE transaction.
+     *
+     * High-level flow:
+     *  1. Validate products & inventory (no DB mutation)
+     *  2. Create transaction header (INITIATED)
+     *  3. Process sale items atomically
+     *
+     * @param kiranaId Kirana ID
+     * @param dto Sale request
+     * @return Transaction response
+     */
+    public TransactionResponseDto sale(String kiranaId,SaleTransactionRequestDto dto) {
 
-        // 1️VALIDATE ALL ITEMS FIRST (NO TRANSACTION)
+        // Validate all items first (no DB mutation)
         Map<String, Product> validatedProducts = new HashMap<>();
 
         for (TransactionItemRequestDto item : dto.getItems()) {
+
+            //validate the products are present and the products are active
             Product product = productDao.findActiveById(item.getProductId());
+            // Validate inventory capacity before starting transaction
             inventoryDao.validateStock(
                     product.getInventoryId(),
                     item.getQuantity()
             );
+            // if both cases like capacity and product is active store in map so that no need to validate again
             validatedProducts.put(item.getProductId(), product);
         }
-
-        // 2️⃣ CREATE TRANSACTION (INITIATED)
-        Claims claims = (Claims) SecurityContextHolder
-                .getContext().getAuthentication().getDetails();
-
-        String transactionId = UlidCreator.getUlid().toString();
-
+        //Create transaction header
         Transaction tx = new Transaction();
-        tx.setId(transactionId);
-        tx.setKId(claims.get("kId", String.class));
+        tx.setKiranaId(kiranaId);
         tx.setCustomerId(dto.getCustomerId());
         tx.setType(TransactionType.SALE);
         tx.setStatus("INITIATED");
         tx.setCurrency(dto.getCurrency());
         tx.setAlreadyRefunded(false);
-        tx.setCreated_at(Instant.now());
-        tx.setUpdated_at(Instant.now());
 
         transactionDao.save(tx);
 
-        // 3️PROCESS ITEMS (TRANSACTIONAL)
+        // 3Process items transactionally
         return processSaleItems(tx, dto, validatedProducts);
     }
 
+    /**
+     * Processes sale items atomically.
+     *
+     * Responsibilities:
+     *  - Reduce inventory
+     *  - Create transaction items
+     *  - Calculate totals
+     *  - Finalize transaction
+     *  - Publish Kafka event
+     */
     @Transactional
-    protected TransactionResponseDto processSaleItems(
-            Transaction tx,
-            SaleTransactionRequestDto dto,
+    protected TransactionResponseDto processSaleItems(Transaction tx, SaleTransactionRequestDto dto,
             Map<String, Product> products) {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -99,10 +122,7 @@ public class ProductOrderService {
             Product product = products.get(item.getProductId());
 
             // Reduce inventory
-            inventoryDao.reduceStock(
-                    product.getInventoryId(),
-                    item.getQuantity()
-            );
+            inventoryDao.reduceStock(product.getInventoryId(), item.getQuantity());
 
             // INR base amount
             BigDecimal baseInr =
@@ -120,7 +140,6 @@ public class ProductOrderService {
             totalAmount = totalAmount.add(converted);
 
             TransactionItem txItem = new TransactionItem();
-            txItem.setTransactionItemId(UlidCreator.getUlid().toString());
             txItem.setTransactionId(tx.getId());
             txItem.setProId(product.getId());
             txItem.setProductName(product.getProName());
@@ -128,7 +147,6 @@ public class ProductOrderService {
             txItem.setQuantity(item.getQuantity());
             txItem.setUnitPrice(product.getUnitPrice());
             txItem.setAmount(converted);
-            txItem.setCreatedAt(Instant.now());
 
             transactionItemDao.save(txItem);
         }
@@ -143,11 +161,10 @@ public class ProductOrderService {
                 )
         );
         tx.setStatus("COMPLETED");
-        tx.setUpdated_at(Instant.now());
 
         transactionDao.save(tx);
 
-        // PUBLISH KAFKA EVENT
+        // Publish Kafka event
         publishEvent(tx, "SALE", totalAmount);
 
         return new TransactionResponseDto(
@@ -156,32 +173,59 @@ public class ProductOrderService {
                 "Sale successful"
         );
     }
+    /**
+     * Initiates a REFUND transaction.
+     *
+     * Flow:
+     *  1. Validate original transaction
+     *  2. Create refund transaction header
+     *  3. Restore inventory + create refund items
+     *  4. Mark original transaction refunded
+     *  5. Publish Kafka event
+     */
     @Transactional
     public TransactionResponseDto refund(RefundTransactionRequestDto dto) {
 
-        Transaction original =
-                transactionDao.findById(dto.getOriginalTransactionId());
+        Transaction original = validateRefundRequest(dto);
+        Transaction refund = new Transaction();
+        createRefundTransactionHeader(refund, original);
+        BigDecimal refundTotal =processRefundItems(refund, original);;
 
-        //  SAFETY: Prevent double refund
-        if (original.isAlreadyRefunded()) {
-            throw new RuntimeException("Transaction already refunded");
-        }
+        // Mark original transaction as refunded
+        original.setAlreadyRefunded(true);
+        transactionDao.save(original);
+
+        // Update the state
+        refund.setStatus("COMPLETED");
+        refund.setTotalAmount(refundTotal);
+        transactionDao.save(refund);
+
+        // Publish Kafka event
+        publishEvent(refund, "REFUND", refundTotal);
+
+        return new TransactionResponseDto(
+                refund.getId(),
+                "SUCCESS",
+                "Refund successful"
+        );
+    }
+    /**
+     * Processes refund items atomically.
+     *
+     * Must run inside an existing transaction.
+     * Restores inventory and creates refund line items.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    protected BigDecimal processRefundItems(Transaction refundTx, Transaction originalTx) {
 
         List<TransactionItem> originalItems =
-                transactionItemDao.findByTransactionId(
-                        original.getId()
-                );
-
-        String refundTransactionId =
-                UlidCreator.getUlid().toString();
+                transactionItemDao.findByTransactionId(originalTx.getId());
 
         BigDecimal refundTotal = BigDecimal.ZERO;
 
         for (TransactionItem oldItem : originalItems) {
 
-            Product product =
-                    productDao.findActiveById(oldItem.getProId());
-
+            Product product = productDao.findActiveById(oldItem.getProId());
             // Restore inventory
             inventoryDao.addStock(
                     product.getInventoryId(),
@@ -189,70 +233,69 @@ public class ProductOrderService {
             );
 
             BigDecimal refundAmount =
-                    oldItem.getAmount().negate();
+                    oldItem.getAmount();
 
             refundTotal = refundTotal.add(refundAmount);
 
             TransactionItem refundItem = new TransactionItem();
-            refundItem.setTransactionItemId(
-                    UlidCreator.getUlid().toString());
-            refundItem.setTransactionId(refundTransactionId);
+            refundItem.setTransactionId(refundTx.getId());
             refundItem.setProId(oldItem.getProId());
             refundItem.setProductName(oldItem.getProductName());
             refundItem.setCategory(oldItem.getCategory());
             refundItem.setQuantity(oldItem.getQuantity());
             refundItem.setUnitPrice(oldItem.getUnitPrice());
             refundItem.setAmount(refundAmount);
-            refundItem.setCreatedAt(Instant.now());
-
             transactionItemDao.save(refundItem);
         }
 
-        // Mark original transaction as refunded
-        original.setAlreadyRefunded(true);
-        original.setUpdated_at(Instant.now());
-        transactionDao.save(original);
+        return refundTotal;
+    }
 
-        // Create refund transaction
-        Transaction refund = new Transaction();
-        refund.setId(refundTransactionId);
-        refund.setKId(original.getKId());
+
+    /**
+     * Creates refund transaction header using original transaction data.
+     */
+    private void createRefundTransactionHeader(Transaction refund, Transaction original) {
+        refund.setKiranaId(original.getKiranaId());
         refund.setCustomerId(original.getCustomerId());
         refund.setType(TransactionType.REFUND);
-        refund.setStatus("COMPLETED");
+        refund.setStatus("INITIATED");
         refund.setCurrency(original.getCurrency());
         refund.setExchangeRate(original.getExchangeRate());
-        refund.setTotalAmount(refundTotal);
-        refund.setOriginalTransactionId(
-                original.getId()
-        );
         refund.setAlreadyRefunded(false);
-        refund.setCreated_at(Instant.now());
-        refund.setUpdated_at(Instant.now());
-
+        refund.setOriginalTransactionId(original.getId());
         transactionDao.save(refund);
-
-        // PUBLISH KAFKA EVENT
-//        publishEvent(refund, "REFUND", refundTotal.abs());
-
-        return new TransactionResponseDto(
-                refundTransactionId,
-                "SUCCESS",
-                "Refund successful"
-        );
     }
-    private void publishEvent(Transaction tx,
-                              String type,
-                              BigDecimal amount) {
+    /**
+     * Validates refund eligibility.
+     *
+     * Prevents duplicate refunds.
+     */
+    private Transaction validateRefundRequest(RefundTransactionRequestDto dto) {
+        Transaction original =
+                transactionDao.findById(dto.getOriginalTransactionId());
+        //Prevents duplicate Refunds
+        if (original.isAlreadyRefunded()) {
+            throw new RuntimeException("Transaction already refunded");
+        }
 
+        return original;
+    }
+    /**
+     * Publishes transaction events to Kafka.
+     *
+     * Used for:
+     *  - Financial reporting
+     */
+    private void publishEvent(Transaction tx, String type,
+                              BigDecimal amount) {
         TransactionEvent event = new TransactionEvent();
         event.setTransactionId(tx.getId());
-        event.setKId(tx.getKId());
+        event.setKiranaId(tx.getKiranaId());
         event.setType(type);
         event.setAmount(amount);
         event.setCurrency(tx.getCurrency());
-        event.setCreatedAt(Instant.now());
-
+        event.setCreatedAt(new Date());
         eventProducer.publish(event);
     }
 }

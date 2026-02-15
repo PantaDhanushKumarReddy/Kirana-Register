@@ -17,6 +17,6 @@ public class TransactionEventProducer {
     }
 
     public void publish(TransactionEvent event) {
-        kafkaTemplate.send(TOPIC, event.getKId(), event);
+        kafkaTemplate.send(TOPIC, event.getKiranaId(), event);
     }
 }

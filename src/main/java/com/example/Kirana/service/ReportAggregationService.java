@@ -1,54 +1,44 @@
 package com.example.Kirana.service;
+
+import com.example.Kirana.dao.mongo.FinancialReportDao;
 import com.example.Kirana.dto.event.TransactionEvent;
 import com.example.Kirana.entity.mongo.FinancialReport;
-import com.example.Kirana.repository.mongo.FinancialReportRepository;
-import com.github.f4b6a3.ulid.UlidCreator;
-import lombok.RequiredArgsConstructor;
+import com.example.Kirana.enums.ReportPeriodType;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 @Service
 public class ReportAggregationService {
 
-    private FinancialReportRepository repository;
+    private final FinancialReportDao dao;
 
-    public ReportAggregationService(FinancialReportRepository repository) {
-        this.repository = repository;
+    public ReportAggregationService(FinancialReportDao dao) {
+        this.dao = dao;
     }
 
     public void aggregate(TransactionEvent event) {
 
+        Date createdAt = event.getCreatedAt();
+
         List<Period> periods = List.of(
-                Period.week(event.getCreatedAt()),
-                Period.month(event.getCreatedAt()),
-                Period.year(event.getCreatedAt())
+                Period.week(createdAt),
+                Period.month(createdAt),
+                Period.year(createdAt)
         );
 
         for (Period p : periods) {
 
             FinancialReport report =
-                    repository.findBykIdAndPeriodTypeAndPeriodKeyAndCurrency(
-                            event.getKId(),
+                    dao.findOrCreate(
+                            event.getKiranaId(),
                             p.type,
                             p.key,
                             event.getCurrency()
-                    ).orElseGet(() -> {
-                        FinancialReport r = new FinancialReport();
-                        r.setId(UlidCreator.getUlid().toString());
-                        r.setKId(event.getKId());
-                        r.setPeriodType(p.type);
-                        r.setPeriodKey(p.key);
-                        r.setCurrency(event.getCurrency());
-                        r.setTotalCredit(BigDecimal.ZERO);
-                        r.setTotalDebit(BigDecimal.ZERO);
-                        r.setNetFlow(BigDecimal.ZERO);
-                        return r;
-                    });
+                    );
 
             if ("SALE".equals(event.getType())) {
                 report.setTotalCredit(
@@ -63,32 +53,31 @@ public class ReportAggregationService {
                             .subtract(report.getTotalDebit())
             );
 
-            report.setUpdatedAt(Instant.now());
-            repository.save(report);
+            dao.save(report);
         }
     }
 
-    // helper record
-    private record Period(String type, String key) {
+    private record Period(ReportPeriodType type, String key) {
 
-        static Period week(Instant i) {
-            String key = DateTimeFormatter.ofPattern("YYYY-'W'ww")
-                    .withZone(ZoneId.of("UTC"))
-                    .format(i);
-            return new Period("WEEK", key);
+        static Period week(Date d) {
+            return new Period(
+                    ReportPeriodType.WEEK,
+                    new SimpleDateFormat("YYYY-'W'ww").format(d)
+            );
         }
 
-        static Period month(Instant i) {
-            String key = DateTimeFormatter.ofPattern("yyyy-MM")
-                    .withZone(ZoneId.of("UTC"))
-                    .format(i);
-            return new Period("MONTH", key);
+        static Period month(Date d) {
+            return new Period(
+                    ReportPeriodType.MONTH,
+                    new SimpleDateFormat("MMM-yyyy").format(d)
+            );
         }
 
-        static Period year(Instant i) {
-            String key = String.valueOf(
-                    i.atZone(ZoneId.of("UTC")).getYear());
-            return new Period("YEAR", key);
+        static Period year(Date d) {
+            return new Period(
+                    ReportPeriodType.YEAR,
+                    new SimpleDateFormat("yyyy").format(d)
+            );
         }
     }
 }

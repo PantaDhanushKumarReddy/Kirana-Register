@@ -1,11 +1,16 @@
 package com.example.Kirana.entity.postgres;
 
 import com.example.Kirana.enums.TransactionType;
+import com.github.f4b6a3.ulid.UlidCreator;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.util.Date;
+
 /**
  * Transaction Entity
  *
@@ -16,11 +21,12 @@ import java.time.Instant;
 @Entity
 @Table(name = "transaction")
 @Data
+@EntityListeners(AuditingEntityListener.class) //Because of we are using createdDate and LastModifiedDate annotations
 public class Transaction {
     @Id
     private String id;
-    @Column(name = "k_id", nullable = false)
-    private String kId;
+    @Column(name = "kirana_id", nullable = false)
+    private String kiranaId;
     @Column(name = "customer_id")
     private String customerId;
     @Enumerated(EnumType.STRING)
@@ -42,6 +48,17 @@ public class Transaction {
      * Prevents duplicate refunds.
      */
     private boolean alreadyRefunded;
-    private Instant created_at;
-    private Instant updated_at;
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private Date createdAt;
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    private Date updatedAt;
+    /**
+     * Auto-generate ULID.
+     */
+    @PrePersist
+    public void generateId() {
+        this.id = UlidCreator.getUlid().toString();
+    }
 }

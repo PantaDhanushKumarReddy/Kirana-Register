@@ -3,9 +3,12 @@ package com.example.Kirana.entity.mongo;
 import com.example.Kirana.enums.Role;
 import jakarta.persistence.Id;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.Date;
+
 /**
  * User Entity
  * Used for authentication, authorization, and role-based access control
@@ -16,7 +19,7 @@ import java.time.Instant;
 public class User {
     @Id
     private String id;
-    private String kId; //Kirana Store Id
+    private String kiranaId; //Kirana Store Id
 
     private String email;
 
@@ -25,6 +28,6 @@ public class User {
     private Role role;
 
     private boolean isActive;
-
-    private Instant createdAt;
+    @CreatedDate
+    private Date createdAt;
 }

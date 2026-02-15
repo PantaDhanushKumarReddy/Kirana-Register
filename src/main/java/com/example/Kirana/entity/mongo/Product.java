@@ -4,10 +4,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Date;
+
 /**
  * Product Entity
  *
@@ -20,9 +24,9 @@ import java.time.Instant;
 public class Product {
 
     @Id
-    private String id; // ULID
+    private String id; //MongoDB ObjectId
 
-    private String kId;  //KiranaStoreId
+    private String kiranaId;  //KiranaStoreId
     private String inventoryId;
 
     @NotBlank
@@ -41,7 +45,8 @@ public class Product {
     private String currency;
 
     private boolean isActive;
-
-    private Instant createdAt;
-    private Instant updatedAt;
+    @CreatedDate
+    private Date createdAt;
+    @LastModifiedDate
+    private Date updatedAt;
 }
