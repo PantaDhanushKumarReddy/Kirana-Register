@@ -29,7 +29,7 @@ public class KiranaController {
      * @return Kirana details
      */
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<Kirana> getById(@PathVariable String id) {
         return ResponseEntity.ok(service.findById(id));
@@ -43,6 +43,7 @@ public class KiranaController {
      * @param dto Kirana registration request data
      * @return Created Kirana entity
      */
+    @PreAuthorize("hasRole('SUPERADMIN')")
     @PostMapping("register")
     public ResponseEntity<Kirana> create(@Valid @RequestBody KiranaRequestDto dto) {
         return ResponseEntity.ok(service.create(dto));
@@ -56,7 +57,7 @@ public class KiranaController {
      * @param id Kirana ID
      * @return Success response message
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<ApiResponse> deactivate(@PathVariable String id) {
         service.deactivate(id);

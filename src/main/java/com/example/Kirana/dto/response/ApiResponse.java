@@ -2,6 +2,8 @@ package com.example.Kirana.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 /**
  * ApiResponse
  *
@@ -9,7 +11,13 @@ import lombok.Data;
  * from API endpoints.
  */
 @Data
-@AllArgsConstructor
 public class ApiResponse {
     private String message;
+
+    public ApiResponse() {
+    }
+
+    public  ApiResponse(String msg){
+        this.message = msg;
+    }
 }

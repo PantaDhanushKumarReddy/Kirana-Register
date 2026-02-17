@@ -50,13 +50,15 @@ public class UserService {
      * @param userRequestDto User creation request data
      * @return Persisted User entity
      */
-    public User create(UserRequestDto userRequestDto) {
+    public User create(String LoggedUserRole,UserRequestDto userRequestDto) {
+        if(LoggedUserRole.equals("ADMIN")&&userRequestDto.getRole().equals(Role.ADMIN)){
+            throw new RuntimeException("ADMIN can't create another ADMIN");
+        }
         User user = new User();
         user.setKiranaId(userRequestDto.getKiranaId());
         user.setEmail(userRequestDto.getEmail());
         user.setRole(userRequestDto.getRole());
         user.setActive(true);
-
         if (userRequestDto.getRole()== Role.CUSTOMER) {
             user.setPassword(null);  // No password for customer
         } else {

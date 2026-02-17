@@ -39,4 +39,7 @@ public class UserDao {
         return repository.findByEmailAndIsActiveTrue(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
     }
+    public User findById(String id){
+        return repository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
+    }
 }

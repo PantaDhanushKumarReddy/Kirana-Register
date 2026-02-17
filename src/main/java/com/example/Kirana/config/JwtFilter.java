@@ -1,5 +1,8 @@
 package com.example.Kirana.config;
 
+import com.example.Kirana.dto.response.ApiResponse;
+import com.example.Kirana.dto.response.ErrorResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -47,7 +50,6 @@ public class JwtFilter extends OncePerRequestFilter {
 
             Claims claims =
                     jwtUtil.validateAccessToken(accessToken);
-
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
                             claims.getSubject(),
@@ -59,6 +61,18 @@ public class JwtFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
 
         } catch (Exception e) {
+//            response.getWriter().write("""
+//            {
+//              "error": "INVALID_TOKEN",
+//              "message": "JWT token is invalid or expired"
+//            }
+//            """);
+            ErrorResponse apiResponse=new ErrorResponse();
+            apiResponse.setError("INVALID_TOKEN");
+            apiResponse.setMessage("JWT token is invalid or expired");
+
+            ObjectMapper mapper = new ObjectMapper();
+            response.getWriter().write(mapper.writeValueAsString(apiResponse));
             response.setStatus(401);
             return;
         }

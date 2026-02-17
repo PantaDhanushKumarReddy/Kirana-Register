@@ -1,5 +1,5 @@
 package com.example.Kirana.enums;
 
 public enum Role{
-    ADMIN,STAFF,CUSTOMER
+    ADMIN,STAFF,CUSTOMER,SUPERADMIN
 }
